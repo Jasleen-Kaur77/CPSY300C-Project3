@@ -5,7 +5,9 @@ __pycache__/
 venv/
 
 # Environment variables
-.env/
+.env
+**/.env
+firebase-service-account.json
 
 
 # Azure Functions
@@ -22,3 +24,5 @@ Thumbs.db
 
 # Outputs
 outputs/
+
+/references
