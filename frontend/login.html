@@ -4,81 +4,32 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Sign in — Nutritional Insights</title>
+  <title>Login - Diet Dashboard</title>
   <link rel="stylesheet" href="style.css" />
 </head>
 
 <body class="auth-body">
   <div class="auth-container">
-    <div class="auth-card auth-card-wide">
-      <h1 class="auth-title">Nutritional Insights</h1>
-      <p class="auth-lead">Choose a provider. A 6-digit code will be simulated (shown in an alert).</p>
+    <div class="auth-card">
+      <h1>Diet Dashboard Login</h1>
 
-      <div id="stepOAuth" class="auth-step">
-        <button type="button" class="btn-oauth-full" id="btnGoogle">Login with Google</button>
-        <button type="button" class="btn-oauth-full btn-oauth-github" id="btnGithub">Login with GitHub</button>
+      <input type="email" id="email" placeholder="Email" />
+      <input type="password" id="password" placeholder="Password" />
+
+      <div class="auth-buttons">
+        <button id="registerBtn">Register</button>
+        <button id="loginBtn">Login</button>
       </div>
 
-      <div id="step2fa" class="auth-step hidden">
-        <p class="two-fa-hint" id="twoFaHint">Enter the 6-digit code you received.</p>
-        <label for="twoFaCode" class="twofa-label-dash">Enter 2FA Code</label>
-        <input type="text" id="twoFaCode" class="auth-input" maxlength="6" inputmode="numeric" autocomplete="one-time-code"
-          placeholder="Enter your 2FA code" />
-        <button type="button" class="btn-verify" id="btnVerify">Verify &amp; continue</button>
-        <p id="authError" class="auth-error" role="alert"></p>
-      </div>
+      <hr />
+
+      <button id="googleBtn">Sign in with Google</button>
+
+      <p id="authMessage"></p>
     </div>
   </div>
 
-  <script>
-    (function () {
-      var STORAGE_KEY = "dashboardUser";
-      if (localStorage.getItem(STORAGE_KEY)) {
-        window.location.href = "index.html";
-        return;
-      }
-
-      var expectedCode = null;
-      var providerName = null;
-
-      function show2FA(provider) {
-        providerName = provider;
-        expectedCode = String(Math.floor(100000 + Math.random() * 900000));
-        window.alert("Simulated SMS / authenticator app:\n\nYour 6-digit code is: " + expectedCode);
-        document.getElementById("stepOAuth").classList.add("hidden");
-        document.getElementById("step2fa").classList.remove("hidden");
-        document.getElementById("twoFaCode").value = "";
-        document.getElementById("authError").textContent = "";
-        document.getElementById("twoFaCode").focus();
-      }
-
-      document.getElementById("btnGoogle").addEventListener("click", function () {
-        show2FA("Google");
-      });
-      document.getElementById("btnGithub").addEventListener("click", function () {
-        show2FA("GitHub");
-      });
-
-      document.getElementById("btnVerify").addEventListener("click", function () {
-        var input = document.getElementById("twoFaCode").value.trim();
-        var err = document.getElementById("authError");
-        err.textContent = "";
-        if (input !== expectedCode) {
-          err.textContent = "Invalid code. Check the alert and try again.";
-          return;
-        }
-        localStorage.setItem(
-          STORAGE_KEY,
-          JSON.stringify({
-            name: "User",
-            provider: providerName,
-            loginAt: new Date().toISOString(),
-          })
-        );
-        window.location.href = "index.html";
-      });
-    })();
-  </script>
+  <script type="module" src="auth.js"></script>
 </body>
 
 </html>

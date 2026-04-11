@@ -1,4 +1,4 @@
-from backend.auth.firebase_config import verify_firebase_token
+from auth.firebase_config import verify_firebase_token
 
 
 def extract_bearer_token(req):
