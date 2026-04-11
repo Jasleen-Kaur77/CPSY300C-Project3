@@ -1,19 +1,23 @@
 import json
-import sys
-sys.path.append(".")
+import azure.functions as func
+from azure.storage.blob import BlobServiceClient
+import os
 
-def get_nutrition():
-    """
-    Returns precomputed nutrition data (FAST)
-    """
-
+def main(req: func.HttpRequest) -> func.HttpResponse:
     try:
-        with open("data/processed/avg_macros.json") as f:
-            data = json.load(f)
+        blob_service = BlobServiceClient.from_connection_string(
+            os.environ["BLOB_CONNECTION_STRING"]
+        )
 
-        print("Returning cached nutrition data")
-        return data
+        container = blob_service.get_container_client("datasets")
 
-    except FileNotFoundError:
-        print("Error: Data not processed yet")
-        return {"error": "Data not processed yet. Run processing first."}
+        blob = container.download_blob("avg_macros.json")
+        data = json.loads(blob.readall())
+
+        return func.HttpResponse(
+            json.dumps(data),
+            mimetype="application/json"
+        )
+
+    except Exception as e:
+        return func.HttpResponse(str(e), status_code=500)

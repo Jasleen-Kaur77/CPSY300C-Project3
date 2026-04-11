@@ -1,4 +1,8 @@
 import json
+import tempfile
+from azure.storage.blob import BlobServiceClient
+import os
+
 from backend.utils.data_cleaning import (
     load_data,
     clean_data,
@@ -8,11 +12,6 @@ from backend.utils.data_cleaning import (
 )
 
 def process_csv(file_path):
-    """
-    Simulates blob trigger:
-    Runs ONLY when CSV file is updated
-    """
-
     print("STEP 1: Loading data...")
     df = load_data(file_path)
 
@@ -24,18 +23,31 @@ def process_csv(file_path):
     top_recipes = top_5_protein_by_diet(df)
     cuisines = cuisine_counts(df)
 
-    print("STEP 4: Saving processed data (cache)...")
+    print("STEP 4: Saving processed data to Azure Blob...")
 
-    # Save average macros
-    with open("data/processed/avg_macros.json", "w") as f:
-        json.dump(avg_macros.to_dict(orient="records"), f)
+    blob_service = BlobServiceClient.from_connection_string(
+        os.environ["BLOB_CONNECTION_STRING"]
+    )
 
-    # Save top recipes
-    with open("data/processed/recipes.json", "w") as f:
-        json.dump(top_recipes.to_dict(orient="records"), f)
+    container = blob_service.get_container_client("datasets")
 
-    # Save cluster data (extra insight)
-    with open("data/processed/clusters.json", "w") as f:
-        json.dump(cuisines.to_dict(orient="records"), f)
+    # Upload JSON files
+    container.upload_blob(
+        name="avg_macros.json",
+        data=json.dumps(avg_macros.to_dict(orient="records")),
+        overwrite=True
+    )
 
-    print("Data processed ONCE and stored successfully!")
+    container.upload_blob(
+        name="recipes.json",
+        data=json.dumps(top_recipes.to_dict(orient="records")),
+        overwrite=True
+    )
+
+    container.upload_blob(
+        name="clusters.json",
+        data=json.dumps(cuisines.to_dict(orient="records")),
+        overwrite=True
+    )
+
+    print("Data processed and stored in Azure!")
