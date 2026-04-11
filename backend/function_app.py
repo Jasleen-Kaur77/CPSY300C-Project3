@@ -4,9 +4,18 @@ import os
 import tempfile
 from azure.storage.blob import BlobServiceClient
 
+from auth.auth_routes import require_auth
 from blob_trigger.process_csv_function import process_csv
 
-app = func.FunctionApp()
+app = func.FunctionApp(http_auth_level=func.AuthLevel.ANONYMOUS)
+
+
+def _get_storage_connection() -> str:
+    return os.environ.get("AzureWebJobsStorage") or os.environ["BLOB_CONNECTION_STRING"]
+
+
+def _get_container_name() -> str:
+    return os.environ.get("BLOB_CONTAINER_NAME", "datasets")
 
 # =========================
 # 🔹 BLOB TRIGGER
@@ -31,10 +40,18 @@ def blob_trigger_function(myblob: func.InputStream):
 @app.route(route="get_nutrition", methods=["GET"])
 def get_nutrition(req: func.HttpRequest) -> func.HttpResponse:
     try:
+        _, auth_error = require_auth(req)
+        if auth_error:
+            return func.HttpResponse(
+                json.dumps(auth_error),
+                mimetype="application/json",
+                status_code=401
+            )
+
         blob_service = BlobServiceClient.from_connection_string(
-            os.environ["BLOB_CONNECTION_STRING"]
+            _get_storage_connection()
         )
-        container = blob_service.get_container_client("datasets")
+        container = blob_service.get_container_client(_get_container_name())
 
         blob = container.download_blob("avg_macros.json")
         data = json.loads(blob.readall())
@@ -51,10 +68,18 @@ def get_nutrition(req: func.HttpRequest) -> func.HttpResponse:
 @app.route(route="get_recipes", methods=["GET"])
 def get_recipes(req: func.HttpRequest) -> func.HttpResponse:
     try:
+        _, auth_error = require_auth(req)
+        if auth_error:
+            return func.HttpResponse(
+                json.dumps(auth_error),
+                mimetype="application/json",
+                status_code=401
+            )
+
         blob_service = BlobServiceClient.from_connection_string(
-            os.environ["BLOB_CONNECTION_STRING"]
+            _get_storage_connection()
         )
-        container = blob_service.get_container_client("datasets")
+        container = blob_service.get_container_client(_get_container_name())
 
         blob = container.download_blob("recipes.json")
         data = json.loads(blob.readall())
@@ -71,10 +96,18 @@ def get_recipes(req: func.HttpRequest) -> func.HttpResponse:
 @app.route(route="get_clusters", methods=["GET"])
 def get_clusters(req: func.HttpRequest) -> func.HttpResponse:
     try:
+        _, auth_error = require_auth(req)
+        if auth_error:
+            return func.HttpResponse(
+                json.dumps(auth_error),
+                mimetype="application/json",
+                status_code=401
+            )
+
         blob_service = BlobServiceClient.from_connection_string(
-            os.environ["BLOB_CONNECTION_STRING"]
+            _get_storage_connection()
         )
-        container = blob_service.get_container_client("datasets")
+        container = blob_service.get_container_client(_get_container_name())
 
         blob = container.download_blob("clusters.json")
         data = json.loads(blob.readall())

@@ -1,14 +1,30 @@
 /**
- * Nutritional Insights — local JSON + Chart.js + filter/search/pagination + auth gate
+ * Nutritional Insights — protected Azure API + Chart.js + filter/search/pagination
  */
 
-const STORAGE_KEY = "dashboardUser";
-const DATA_BASE = "../data/processed/";
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import {
+  getAuth,
+  onAuthStateChanged,
+  signOut
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyD6LH-ncnwjQfmMBjHVqQTyGD1W0EypPsI",
+  authDomain: "cloud-5df20.firebaseapp.com",
+  projectId: "cloud-5df20",
+  storageBucket: "cloud-5df20.firebasestorage.app",
+  messagingSenderId: "378648735135",
+  appId: "1:378648735135:web:9d501e230c7e3fa391e1aa"
+};
+
+const firebaseApp = initializeApp(firebaseConfig);
+const auth = getAuth(firebaseApp);
+const API_BASE = "https://diets-app.azurewebsites.net/api";
 const URLS = {
-  avg_macros: DATA_BASE + "avg_macros.json",
-  recipes: DATA_BASE + "recipes.json",
-  clusters: DATA_BASE + "clusters.json",
-  cuisines: DATA_BASE + "cuisines.json",
+  avg_macros: API_BASE + "/get_nutrition",
+  recipes: API_BASE + "/get_recipes",
+  clusters: API_BASE + "/get_clusters",
 };
 
 const PAGE_SIZE = 10;
@@ -22,6 +38,7 @@ let allRecipes = [];
 let cuisines = [];
 let clusters = [];
 let currentPage = 1;
+let currentUser = null;
 
 const welcomeMsg = document.getElementById("welcomeMsg");
 const logoutBtn = document.getElementById("logoutBtn");
@@ -36,27 +53,20 @@ const nextBtn = document.getElementById("nextBtn");
 const pageNumbers = document.getElementById("pageNumbers");
 const clustersPanel = document.getElementById("clustersPanel");
 
-function getUser() {
-  const raw = localStorage.getItem(STORAGE_KEY);
-  if (!raw) return null;
-  try {
-    return JSON.parse(raw);
-  } catch {
-    return null;
-  }
-}
-
-function requireAuth() {
-  const u = getUser();
-  if (!u) {
-    window.location.href = "login.html";
-    return null;
-  }
-  return u;
-}
-
 async function fetchJson(url) {
-  const res = await fetch(url, { cache: "no-store" });
+  if (!currentUser) {
+    window.location.href = "login.html";
+    throw new Error("User is not authenticated");
+  }
+
+  const token = await currentUser.getIdToken();
+  const res = await fetch(url, {
+    cache: "no-store",
+    headers: {
+      Authorization: `Bearer ${token}`
+    }
+  });
+
   if (!res.ok) throw new Error(url + " → " + res.status);
   return res.json();
 }
@@ -438,7 +448,7 @@ async function loadRecipesData() {
 }
 
 async function loadCuisinesData() {
-  cuisines = await fetchJson(URLS.cuisines);
+  cuisines = await fetchJson(URLS.clusters);
   updatePieChart();
 }
 
@@ -450,17 +460,19 @@ async function loadClustersData() {
 }
 
 async function loadAllInitial() {
-  const [macros, rec, cuis] = await Promise.all([
+  const [macros, rec, clusterRows] = await Promise.all([
     fetchJson(URLS.avg_macros),
     fetchJson(URLS.recipes),
-    fetchJson(URLS.cuisines),
+    fetchJson(URLS.clusters),
   ]);
   avgMacros = macros;
   allRecipes = rec;
-  cuisines = cuis;
+  cuisines = clusterRows;
+  clusters = clusterRows;
   updateBarChart();
   renderHeatmap();
   updatePieChart();
+  renderClustersPanel();
   populateDietFilter();
   currentPage = 1;
   renderRecipesAndScatter();
@@ -470,8 +482,8 @@ async function loadAllInitial() {
     " recipes, " +
     avgMacros.length +
     " macro rows, " +
-    cuisines.length +
-    " cuisines.";
+    clusters.length +
+    " cluster rows.";
 }
 
 function wireEvents() {
@@ -495,19 +507,19 @@ function wireEvents() {
   document.getElementById("btnNutrition").addEventListener("click", function () {
     loadNutrition().catch(function (e) {
       console.error(e);
-      statusLine.textContent = "Failed to load avg_macros.json";
+      statusLine.textContent = "Failed to load nutrition data";
     });
   });
   document.getElementById("btnRecipes").addEventListener("click", function () {
     loadRecipesData().catch(function (e) {
       console.error(e);
-      statusLine.textContent = "Failed to load recipes.json";
+      statusLine.textContent = "Failed to load recipes data";
     });
   });
   document.getElementById("btnClusters").addEventListener("click", function () {
     loadClustersData().catch(function (e) {
       console.error(e);
-      statusLine.textContent = "Failed to load clusters.json";
+      statusLine.textContent = "Failed to load cluster data";
     });
   });
 
@@ -516,26 +528,27 @@ function wireEvents() {
   });
 
   logoutBtn.addEventListener("click", function () {
-    localStorage.removeItem(STORAGE_KEY);
-    window.location.href = "login.html";
+    signOut(auth).finally(function () {
+      window.location.href = "login.html";
+    });
   });
 }
 
-function init() {
-  const user = requireAuth();
-  if (!user) return;
+wireEvents();
 
-  welcomeMsg.textContent = "Welcome, " + (user.name || "User");
+onAuthStateChanged(auth, function (user) {
+  if (!user) {
+    window.location.href = "login.html";
+    return;
+  }
+
+  currentUser = user;
+  welcomeMsg.textContent = "Welcome, " + (user.displayName || user.email || "User");
   oauthStatus.textContent =
-    "Signed in with " + (user.provider || "OAuth") + " (2FA verified).";
-
-  wireEvents();
+    "Signed in with " + (user.providerData[0]?.providerId || "firebase") + ".";
 
   loadAllInitial().catch(function (err) {
     console.error(err);
-    statusLine.textContent =
-      "Could not load JSON. Use a local server from project root (e.g. python -m http.server) and open /frontend/index.html";
+    statusLine.textContent = "Could not load data from the protected Azure API.";
   });
-}
-
-init();
+});

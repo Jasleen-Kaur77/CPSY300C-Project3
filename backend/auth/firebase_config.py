@@ -12,7 +12,7 @@ def initialize_firebase():
 
     service_account_path = os.getenv(
         "FIREBASE_SERVICE_ACCOUNT_PATH",
-        "backend/auth/firebase-service-account.json"
+        "auth/firebase-service-account.json"
     )
 
     cred = credentials.Certificate(service_account_path)
