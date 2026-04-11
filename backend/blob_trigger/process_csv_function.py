@@ -1,15 +1,22 @@
 import json
-import tempfile
 from azure.storage.blob import BlobServiceClient
 import os
 
-from backend.utils.data_cleaning import (
+from utils.data_cleaning import (
     load_data,
     clean_data,
     avg_macros_by_diet,
     top_5_protein_by_diet,
     cuisine_counts
 )
+
+
+def _get_storage_connection() -> str:
+    return os.environ.get("AzureWebJobsStorage") or os.environ["BLOB_CONNECTION_STRING"]
+
+
+def _get_container_name() -> str:
+    return os.environ.get("BLOB_CONTAINER_NAME", "datasets")
 
 def process_csv(file_path):
     print("STEP 1: Loading data...")
@@ -26,10 +33,10 @@ def process_csv(file_path):
     print("STEP 4: Saving processed data to Azure Blob...")
 
     blob_service = BlobServiceClient.from_connection_string(
-        os.environ["BLOB_CONNECTION_STRING"]
+        _get_storage_connection()
     )
 
-    container = blob_service.get_container_client("datasets")
+    container = blob_service.get_container_client(_get_container_name())
 
     # Upload JSON files
     container.upload_blob(

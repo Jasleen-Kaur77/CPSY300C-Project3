@@ -8,6 +8,14 @@ from blob_trigger.process_csv_function import process_csv
 
 app = func.FunctionApp()
 
+
+def _get_storage_connection() -> str:
+    return os.environ.get("AzureWebJobsStorage") or os.environ["BLOB_CONNECTION_STRING"]
+
+
+def _get_container_name() -> str:
+    return os.environ.get("BLOB_CONTAINER_NAME", "datasets")
+
 # =========================
 # 🔹 BLOB TRIGGER
 # =========================
@@ -32,9 +40,9 @@ def blob_trigger_function(myblob: func.InputStream):
 def get_nutrition(req: func.HttpRequest) -> func.HttpResponse:
     try:
         blob_service = BlobServiceClient.from_connection_string(
-            os.environ["BLOB_CONNECTION_STRING"]
+            _get_storage_connection()
         )
-        container = blob_service.get_container_client("datasets")
+        container = blob_service.get_container_client(_get_container_name())
 
         blob = container.download_blob("avg_macros.json")
         data = json.loads(blob.readall())
@@ -52,9 +60,9 @@ def get_nutrition(req: func.HttpRequest) -> func.HttpResponse:
 def get_recipes(req: func.HttpRequest) -> func.HttpResponse:
     try:
         blob_service = BlobServiceClient.from_connection_string(
-            os.environ["BLOB_CONNECTION_STRING"]
+            _get_storage_connection()
         )
-        container = blob_service.get_container_client("datasets")
+        container = blob_service.get_container_client(_get_container_name())
 
         blob = container.download_blob("recipes.json")
         data = json.loads(blob.readall())
@@ -72,9 +80,9 @@ def get_recipes(req: func.HttpRequest) -> func.HttpResponse:
 def get_clusters(req: func.HttpRequest) -> func.HttpResponse:
     try:
         blob_service = BlobServiceClient.from_connection_string(
-            os.environ["BLOB_CONNECTION_STRING"]
+            _get_storage_connection()
         )
-        container = blob_service.get_container_client("datasets")
+        container = blob_service.get_container_client(_get_container_name())
 
         blob = container.download_blob("clusters.json")
         data = json.loads(blob.readall())
