@@ -3,7 +3,7 @@ import tempfile
 from azure.storage.blob import BlobServiceClient
 import os
 
-from utils.data_cleaning import (
+from backend.utils.data_cleaning import (
     load_data,
     clean_data,
     avg_macros_by_diet,
