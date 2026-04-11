@@ -4,45 +4,122 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Diet Analysis Dashboard</title>
+  <title>Nutritional Insights</title>
   <link rel="stylesheet" href="style.css" />
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 </head>
 
 <body>
-  <div class="top-bar">
-    <h1>Diet Analysis Dashboard</h1>
-    <div class="user-panel">
-      <span id="userName">Loading...</span>
-      <button id="logoutBtn">Logout</button>
+  <header class="site-header">
+    <h1 class="site-title">Nutritional Insights</h1>
+    <div class="header-user">
+      <span id="welcomeMsg"></span>
+      <button type="button" id="logoutBtn" class="btn-header-logout">Logout</button>
     </div>
-  </div>
+  </header>
 
-  <div id="dashboardContent" style="display: none;">
-    <div class="controls">
-      <button id="refreshBtn">Refresh Data</button>
+  <main class="main-wrap">
+    <section class="section-block" aria-labelledby="explore-h">
+      <h2 id="explore-h" class="section-heading">Explore Nutritional Insights</h2>
+      <div class="insight-grid">
+        <article class="insight-card chart-box">
+          <h3 class="insight-card-title">Bar Chart</h3>
+          <p class="insight-card-desc">Average macronutrient content by diet type.</p>
+          <div class="canvas-wrap">
+            <canvas id="chartBar" aria-label="Bar chart protein by diet"></canvas>
+          </div>
+        </article>
+        <article class="insight-card chart-box">
+          <h3 class="insight-card-title">Scatter Plot</h3>
+          <p class="insight-card-desc">Nutrient relationships (Carbs vs Protein).</p>
+          <div class="canvas-wrap">
+            <canvas id="chartScatter" aria-label="Scatter carbs vs protein"></canvas>
+          </div>
+        </article>
+        <article class="insight-card heatmap-box">
+          <h3 class="insight-card-title">Heatmap</h3>
+          <p class="insight-card-desc">Protein, Carbs, Fat by diet (normalized colors).</p>
+          <div id="heatmapContainer" class="heatmap-scroll"></div>
+        </article>
+        <article class="insight-card chart-box">
+          <h3 class="insight-card-title">Pie Chart</h3>
+          <p class="insight-card-desc">Recipe distribution by cuisine.</p>
+          <div class="canvas-wrap">
+            <canvas id="chartPie" aria-label="Pie chart cuisines"></canvas>
+          </div>
+        </article>
+      </div>
+    </section>
 
-      <select id="dietFilter">
-        <option value="all">All Diet Types</option>
-      </select>
+    <section class="section-block" aria-labelledby="filters-h">
+      <h2 id="filters-h" class="section-heading">Filters and Data Interaction</h2>
+      <div class="filter-row">
+        <input type="search" id="searchInput" class="input-dash" placeholder="Search by Recipe name"
+          autocomplete="off" />
+        <select id="dietFilter" class="input-dash">
+          <option value="all">All Diet Types</option>
+        </select>
+      </div>
+      <p id="statusLine" class="status-line" role="status"></p>
+    </section>
 
-      <p id="meta">Execution time: --</p>
-    </div>
+    <section class="section-block card-panel" id="recipeSection">
+      <h2 class="section-heading">Recipe list</h2>
+      <p id="recipeRange" class="recipe-range" aria-live="polite"></p>
+      <ul id="recipeList" class="recipe-ul"></ul>
+      <nav class="pagination-bar pagination-near-list" aria-label="Recipe list pagination">
+        <button type="button" id="prevBtn" class="page-nav" disabled>Previous</button>
+        <div id="pageNumbers" class="page-nums"></div>
+        <button type="button" id="nextBtn" class="page-nav" disabled>Next</button>
+      </nav>
+    </section>
 
-    <div class="chart-container">
-      <canvas id="barChart"></canvas>
-    </div>
+    <section class="section-block" aria-labelledby="api-h">
+      <h2 id="api-h" class="section-heading">API Data Interaction</h2>
+      <div class="api-row">
+        <button type="button" id="btnNutrition" class="btn-api btn-blue">Get Nutritional Insights</button>
+        <button type="button" id="btnRecipes" class="btn-api btn-green">Get Recipes</button>
+        <button type="button" id="btnClusters" class="btn-api btn-purple">Get Clusters</button>
+      </div>
+    </section>
 
-    <div class="chart-container">
-      <canvas id="pieChart"></canvas>
-    </div>
+    <section class="section-block card-panel" id="clustersSection">
+      <h2 class="section-heading">Clusters data</h2>
+      <p class="section-note">Loaded when you click <strong>Get Clusters</strong> (<code>clusters.json</code>).</p>
+      <div id="clustersPanel" class="clusters-panel">
+        <p class="muted">Click &quot;Get Clusters&quot; to load cuisine counts.</p>
+      </div>
+    </section>
 
-    <div class="chart-container">
-      <canvas id="lineChart"></canvas>
-    </div>
-  </div>
+    <section class="section-block card-panel security-card">
+      <h2 class="section-heading">Security &amp; Compliance</h2>
+      <h3 class="subhead">Security Status</h3>
+      <ul class="security-ul">
+        <li>Encryption: <span class="sec-ok">Enabled</span></li>
+        <li>Access Control: <span class="sec-ok">Secure</span></li>
+        <li>Compliance: <span class="sec-gdpr">GDPR Compliant</span></li>
+      </ul>
+    </section>
 
-  <script type="module" src="app.js"></script>
+    <section class="section-block card-panel">
+      <h2 class="section-heading">OAuth &amp; 2FA</h2>
+      <p id="oauthStatus" class="oauth-note"></p>
+      <p class="muted small">You signed in on the login page with Google or GitHub and verified 2FA.</p>
+    </section>
+
+    <section class="section-block card-panel">
+      <h2 class="section-heading">Cloud Resource Cleanup</h2>
+      <p>Ensure that cloud resources are efficiently managed and cleaned up post-deployment.</p>
+      <button type="button" id="btnCleanup" class="btn-danger">Clean Up Resources</button>
+    </section>
+
+  </main>
+
+  <footer class="site-footer">
+    <p>© 2025 Nutritional Insights. All Rights Reserved.</p>
+  </footer>
+
+  <script src="app.js"></script>
 </body>
 
 </html>

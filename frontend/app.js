@@ -1,226 +1,541 @@
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import {
-  getAuth,
-  onAuthStateChanged,
-  signOut
-} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+/**
+ * Nutritional Insights — local JSON + Chart.js + filter/search/pagination + auth gate
+ */
 
-const firebaseConfig = {
-  apiKey: "AIzaSyD6LH-ncnwjQfmMBjHVqQTyGD1W0EypPsI",
-  authDomain: "cloud-5df20.firebaseapp.com",
-  projectId: "cloud-5df20",
-  storageBucket: "cloud-5df20.firebasestorage.app",
-  messagingSenderId: "378648735135",
-  appId: "1:378648735135:web:9d501e230c7e3fa391e1aa"
+const STORAGE_KEY = "dashboardUser";
+const DATA_BASE = "../data/processed/";
+const URLS = {
+  avg_macros: DATA_BASE + "avg_macros.json",
+  recipes: DATA_BASE + "recipes.json",
+  clusters: DATA_BASE + "clusters.json",
+  cuisines: DATA_BASE + "cuisines.json",
 };
 
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
+const PAGE_SIZE = 10;
 
-const API_URL = "https://diets-app.azurewebsites.net/api/diet-dashboard";
+let chartBar = null;
+let chartScatter = null;
+let chartPie = null;
 
-const refreshBtn = document.getElementById("refreshBtn");
-const dietFilter = document.getElementById("dietFilter");
+let avgMacros = [];
+let allRecipes = [];
+let cuisines = [];
+let clusters = [];
+let currentPage = 1;
+
+const welcomeMsg = document.getElementById("welcomeMsg");
 const logoutBtn = document.getElementById("logoutBtn");
-const userNameEl = document.getElementById("userName");
-const dashboardContent = document.getElementById("dashboardContent");
-const metaEl = document.getElementById("meta");
+const oauthStatus = document.getElementById("oauthStatus");
+const dietFilter = document.getElementById("dietFilter");
+const searchInput = document.getElementById("searchInput");
+const recipeList = document.getElementById("recipeList");
+const statusLine = document.getElementById("statusLine");
+const recipeRange = document.getElementById("recipeRange");
+const prevBtn = document.getElementById("prevBtn");
+const nextBtn = document.getElementById("nextBtn");
+const pageNumbers = document.getElementById("pageNumbers");
+const clustersPanel = document.getElementById("clustersPanel");
 
-let currentUser = null;
-let barChart, pieChart, lineChart;
-let globalData = null;
-
-refreshBtn.addEventListener("click", loadData);
-dietFilter.addEventListener("change", filterData);
-
-logoutBtn.addEventListener("click", async () => {
+function getUser() {
+  const raw = localStorage.getItem(STORAGE_KEY);
+  if (!raw) return null;
   try {
-    await signOut(auth);
-    window.location.href = "login.html";
-  } catch (error) {
-    console.error("Logout failed:", error);
-  }
-});
-
-onAuthStateChanged(auth, async (user) => {
-  if (!user) {
-    window.location.href = "login.html";
-    return;
-  }
-
-  currentUser = user;
-  userNameEl.textContent = user.displayName || user.email || "User";
-  dashboardContent.style.display = "block";
-
-  await loadData();
-});
-
-async function loadData() {
-  if (!currentUser) {
-    window.location.href = "login.html";
-    return;
-  }
-
-  try {
-    const token = await currentUser.getIdToken();
-
-    const response = await fetch(API_URL, {
-      method: "GET",
-      headers: {
-        "Authorization": `Bearer ${token}`
-      }
-    });
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      throw new Error(data.error || "Failed to load data");
-    }
-
-    globalData = data;
-    populateFilter(data);
-
-    metaEl.textContent = `Execution time: ${data.execution_time_ms ?? "--"} ms`;
-
-    renderCharts(data);
-  } catch (error) {
-    console.error("Error loading data:", error);
-    metaEl.textContent = `Failed to load data: ${error.message}`;
+    return JSON.parse(raw);
+  } catch {
+    return null;
   }
 }
 
-function renderCharts(data) {
-  const avgMacros = data.avg_macros || [];
-  const topProtein = data.top_protein || [];
-  const cuisineCounts = data.cuisine_counts || [];
+function requireAuth() {
+  const u = getUser();
+  if (!u) {
+    window.location.href = "login.html";
+    return null;
+  }
+  return u;
+}
 
-  const dietLabels = avgMacros.map(x => x.Diet_type);
-  const proteinData = avgMacros.map(x => x.Protein);
-  const carbsData = avgMacros.map(x => x.Carbs);
-  const fatData = avgMacros.map(x => x.Fat);
+async function fetchJson(url) {
+  const res = await fetch(url, { cache: "no-store" });
+  if (!res.ok) throw new Error(url + " → " + res.status);
+  return res.json();
+}
 
-  const cuisineLabels = cuisineCounts.map(x => x.Cuisine);
-  const cuisineData = cuisineCounts.map(x => x.Count);
+function filterByDiet(data, diet) {
+  if (!diet || diet === "all") return data.slice();
+  return data.filter((row) => row["Diet_type"] === diet);
+}
 
-  const topProteinLabels = topProtein.map(x =>
-    x.Recipe_name.length > 20
-      ? x.Recipe_name.slice(0, 20) + "..."
-      : x.Recipe_name
+function searchByKeyword(data, keyword) {
+  const q = String(keyword).trim().toLowerCase();
+  if (!q) return data.slice();
+  return data.filter((d) =>
+    String(d["Recipe_name"]).toLowerCase().includes(q)
   );
-  const topProteinValues = topProtein.map(x => x.Protein);
+}
 
-  if (barChart) barChart.destroy();
-  if (pieChart) pieChart.destroy();
-  if (lineChart) lineChart.destroy();
+function getFilteredRecipes() {
+  let rows = filterByDiet(allRecipes, dietFilter.value);
+  rows = searchByKeyword(rows, searchInput.value);
+  return rows;
+}
 
-  barChart = new Chart(document.getElementById("barChart"), {
+function paginateSlice(data, page, limit) {
+  const start = (page - 1) * limit;
+  return data.slice(start, start + limit);
+}
+
+function totalPages(n, limit) {
+  return Math.max(1, Math.ceil(n / limit));
+}
+
+function destroyChart(ch) {
+  if (ch) {
+    ch.destroy();
+    return null;
+  }
+  return null;
+}
+
+function updateBarChart() {
+  const ctx = document.getElementById("chartBar");
+  chartBar = destroyChart(chartBar);
+  const labels = avgMacros.map((r) => r.Diet_type);
+  const protein = avgMacros.map((r) => r.Protein);
+  chartBar = new Chart(ctx, {
     type: "bar",
     data: {
-      labels: dietLabels,
+      labels,
       datasets: [
-        { label: "Protein", data: proteinData },
-        { label: "Carbs", data: carbsData },
-        { label: "Fat", data: fatData }
-      ]
+        {
+          label: "Protein (avg)",
+          data: protein,
+          backgroundColor: "rgba(37, 99, 235, 0.75)",
+          borderColor: "rgba(37, 99, 235, 1)",
+          borderWidth: 1,
+        },
+      ],
     },
     options: {
       responsive: true,
-      plugins: {
-        title: {
-          display: true,
-          text: "Average Macronutrients by Diet Type"
-        }
-      }
-    }
+      maintainAspectRatio: false,
+      plugins: { legend: { display: true } },
+      scales: {
+        y: { beginAtZero: true, title: { display: true, text: "Protein" } },
+        x: { title: { display: true, text: "Diet type" } },
+      },
+    },
   });
+}
 
-  pieChart = new Chart(document.getElementById("pieChart"), {
+function updateScatterChart(rows) {
+  const ctx = document.getElementById("chartScatter");
+  chartScatter = destroyChart(chartScatter);
+  const pts = rows.map((r) => ({ x: r.Carbs, y: r.Protein }));
+  chartScatter = new Chart(ctx, {
+    type: "scatter",
+    data: {
+      datasets: [
+        {
+          label: "Recipes (Carbs vs Protein)",
+          data: pts,
+          backgroundColor: "rgba(16, 185, 129, 0.45)",
+          borderColor: "rgba(16, 185, 129, 0.9)",
+          borderWidth: 1,
+          pointRadius: 5,
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: true } },
+      scales: {
+        x: {
+          type: "linear",
+          title: { display: true, text: "Carbs" },
+          beginAtZero: true,
+        },
+        y: {
+          type: "linear",
+          title: { display: true, text: "Protein" },
+          beginAtZero: true,
+        },
+      },
+    },
+  });
+}
+
+function updatePieChart() {
+  const ctx = document.getElementById("chartPie");
+  chartPie = destroyChart(chartPie);
+  const labels = cuisines.map((r) => r.Cuisine);
+  const values = cuisines.map((r) => r.Count);
+  const palette = [
+    "#2563eb",
+    "#10b981",
+    "#8b5cf6",
+    "#f59e0b",
+    "#ec4899",
+    "#06b6d4",
+    "#84cc16",
+    "#f97316",
+  ];
+  const bgColors = labels.map((_, i) => palette[i % palette.length]);
+  chartPie = new Chart(ctx, {
     type: "pie",
     data: {
-      labels: cuisineLabels,
+      labels,
       datasets: [
         {
-          label: "Cuisine Distribution",
-          data: cuisineData
-        }
-      ]
+          data: values,
+          backgroundColor: bgColors,
+          borderColor: "#fff",
+          borderWidth: 2,
+        },
+      ],
     },
     options: {
       responsive: true,
+      maintainAspectRatio: false,
       plugins: {
-        title: {
+        legend: {
           display: true,
-          text: "Cuisine Distribution"
-        }
-      }
-    }
-  });
-
-  lineChart = new Chart(document.getElementById("lineChart"), {
-    type: "line",
-    data: {
-      labels: topProteinLabels,
-      datasets: [
-        {
-          label: "Top Protein Recipes",
-          data: topProteinValues,
-          fill: false,
-          tension: 0.2
-        }
-      ]
+          position: "right",
+          labels: {
+            boxWidth: 14,
+            boxHeight: 14,
+            padding: 10,
+            usePointStyle: false,
+            generateLabels: function (chart) {
+              const data = chart.data;
+              const ds = data.datasets[0];
+              if (!data.labels || !ds) return [];
+              return data.labels.map(function (label, i) {
+                return {
+                  text: String(label),
+                  fillStyle: Array.isArray(ds.backgroundColor)
+                    ? ds.backgroundColor[i]
+                    : ds.backgroundColor,
+                  strokeStyle: "transparent",
+                  lineWidth: 0,
+                  hidden: false,
+                  index: i,
+                  datasetIndex: 0,
+                };
+              });
+            },
+          },
+        },
+      },
     },
-    options: {
-      responsive: true,
-      plugins: {
-        title: {
-          display: true,
-          text: "Top Protein-Rich Recipes"
-        }
-      }
-    }
   });
 }
 
-function populateFilter(data) {
-  const filter = document.getElementById("dietFilter");
-  const selectedValue = filter.value;
-
-  filter.innerHTML = '<option value="all">All Diet Types</option>';
-
-  const avgMacros = data.avg_macros || [];
-
-  avgMacros.forEach(diet => {
-    const option = document.createElement("option");
-    option.value = diet.Diet_type;
-    option.textContent = diet.Diet_type;
-    filter.appendChild(option);
-  });
-
-  if ([...filter.options].some(option => option.value === selectedValue)) {
-    filter.value = selectedValue;
-  }
-}
-
-function filterData() {
-  const selectedDiet = dietFilter.value;
-
-  if (!globalData) return;
-
-  if (selectedDiet === "all") {
-    renderCharts(globalData);
+function renderHeatmap() {
+  const el = document.getElementById("heatmapContainer");
+  if (!avgMacros.length) {
+    el.innerHTML = "<p class='muted'>Load nutritional data first.</p>";
     return;
   }
+  const cols = ["Protein", "Carbs", "Fat"];
+  const mins = {};
+  const maxs = {};
+  cols.forEach((c) => {
+    mins[c] = Infinity;
+    maxs[c] = -Infinity;
+  });
+  avgMacros.forEach((row) => {
+    cols.forEach((c) => {
+      const v = Number(row[c]);
+      if (v < mins[c]) mins[c] = v;
+      if (v > maxs[c]) maxs[c] = v;
+    });
+  });
 
-  const filtered = {
-    avg_macros: globalData.avg_macros.filter(
-      x => x.Diet_type === selectedDiet
-    ),
-    top_protein: globalData.top_protein.filter(
-      x => x.Diet_type === selectedDiet
-    ),
-    cuisine_counts: globalData.cuisine_counts,
-    execution_time_ms: globalData.execution_time_ms
-  };
+  function cellColor(val, c) {
+    const mn = mins[c];
+    const mx = maxs[c];
+    const t = mx === mn ? 0.5 : (val - mn) / (mx - mn);
+    const L = 92 - t * 42;
+    return "hsl(222 65% " + L + "%)";
+  }
 
-  renderCharts(filtered);
+  let thead = "<thead><tr><th>Diet</th>";
+  cols.forEach((c) => {
+    thead += "<th>" + c + "</th>";
+  });
+  thead += "</tr></thead>";
+
+  let tbody = "<tbody>";
+  avgMacros.forEach((row) => {
+    tbody += "<tr><td><strong>" + escapeHtml(row.Diet_type) + "</strong></td>";
+    cols.forEach((c) => {
+      const v = Number(row[c]);
+      tbody +=
+        "<td class='hm-cell' style='background:" +
+        cellColor(v, c) +
+        "'>" +
+        formatNum(v) +
+        "</td>";
+    });
+    tbody += "</tr>";
+  });
+  tbody += "</tbody>";
+
+  el.innerHTML = "<table class='heatmap-table'>" + thead + tbody + "</table>";
 }
+
+function renderClustersPanel() {
+  if (!clusters.length) {
+    clustersPanel.innerHTML =
+      "<p class='muted'>No cluster data loaded yet.</p>";
+    return;
+  }
+  let html =
+    "<table class='clusters-table'><thead><tr><th>Cuisine</th><th>Count</th></tr></thead><tbody>";
+  clusters.forEach((row) => {
+    html +=
+      "<tr><td>" +
+      escapeHtml(row.Cuisine) +
+      "</td><td>" +
+      escapeHtml(String(row.Count)) +
+      "</td></tr>";
+  });
+  html += "</tbody></table>";
+  clustersPanel.innerHTML = html;
+}
+
+function escapeHtml(s) {
+  const d = document.createElement("div");
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+function formatNum(n) {
+  if (n == null || Number.isNaN(n)) return "—";
+  return Number(n).toLocaleString(undefined, { maximumFractionDigits: 2 });
+}
+
+function populateDietFilter() {
+  const set = new Set();
+  allRecipes.forEach((r) => {
+    if (r.Diet_type) set.add(r.Diet_type);
+  });
+  const sorted = [...set].sort();
+  const keep = dietFilter.value;
+  dietFilter.innerHTML = '<option value="all">All Diet Types</option>';
+  sorted.forEach((d) => {
+    const o = document.createElement("option");
+    o.value = d;
+    o.textContent = d;
+    dietFilter.appendChild(o);
+  });
+  if ([...dietFilter.options].some((o) => o.value === keep)) {
+    dietFilter.value = keep;
+  }
+}
+
+function renderPageButtons(pages) {
+  pageNumbers.innerHTML = "";
+  for (let p = 1; p <= pages; p++) {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "page-num" + (p === currentPage ? " is-active" : "");
+    b.textContent = String(p);
+    b.addEventListener("click", function () {
+      currentPage = p;
+      renderRecipesAndScatter();
+    });
+    pageNumbers.appendChild(b);
+  }
+}
+
+function renderRecipesAndScatter() {
+  const filtered = getFilteredRecipes();
+  const pages = totalPages(filtered.length, PAGE_SIZE);
+  if (currentPage > pages) currentPage = pages;
+  if (currentPage < 1) currentPage = 1;
+
+  const slice = paginateSlice(filtered, currentPage, PAGE_SIZE);
+  const total = filtered.length;
+  const startIdx = total === 0 ? 0 : (currentPage - 1) * PAGE_SIZE + 1;
+  const endIdx = total === 0 ? 0 : Math.min(currentPage * PAGE_SIZE, total);
+
+  if (recipeRange) {
+    recipeRange.textContent =
+      total === 0
+        ? "No recipes to show."
+        : "Showing " +
+          startIdx +
+          "–" +
+          endIdx +
+          " of " +
+          total +
+          " recipes (page " +
+          currentPage +
+          " of " +
+          pages +
+          ").";
+  }
+
+  recipeList.innerHTML = "";
+  slice.forEach((row) => {
+    const li = document.createElement("li");
+    li.className = "recipe-li";
+    li.innerHTML =
+      "<span class='recipe-name'>" +
+      escapeHtml(row.Recipe_name) +
+      "</span>" +
+      "<span class='recipe-meta'><span class='diet-badge'>" +
+      escapeHtml(row.Diet_type) +
+      "</span> Protein: " +
+      formatNum(row.Protein) +
+      "</span>";
+    recipeList.appendChild(li);
+  });
+
+  if (!filtered.length) {
+    const li = document.createElement("li");
+    li.className = "recipe-empty";
+    li.textContent = "No recipes match your filters.";
+    recipeList.appendChild(li);
+  }
+
+  statusLine.textContent =
+    filtered.length +
+    " match(es) · Page " +
+    currentPage +
+    " of " +
+    pages +
+    " · " +
+    PAGE_SIZE +
+    " per page";
+
+  renderPageButtons(pages);
+  prevBtn.disabled = currentPage <= 1 || filtered.length === 0;
+  nextBtn.disabled = currentPage >= pages || filtered.length === 0;
+
+  /* Scatter reflects the current page only so changing pages visibly updates the chart */
+  updateScatterChart(slice);
+}
+
+async function loadNutrition() {
+  avgMacros = await fetchJson(URLS.avg_macros);
+  updateBarChart();
+  renderHeatmap();
+  statusLine.textContent =
+    "Loaded avg_macros.json — " + avgMacros.length + " diet row(s).";
+}
+
+async function loadRecipesData() {
+  allRecipes = await fetchJson(URLS.recipes);
+  if (!Array.isArray(allRecipes)) throw new Error("recipes must be array");
+  populateDietFilter();
+  currentPage = 1;
+  renderRecipesAndScatter();
+  statusLine.textContent = "Loaded recipes.json — " + allRecipes.length + " recipe(s).";
+}
+
+async function loadCuisinesData() {
+  cuisines = await fetchJson(URLS.cuisines);
+  updatePieChart();
+}
+
+async function loadClustersData() {
+  clusters = await fetchJson(URLS.clusters);
+  renderClustersPanel();
+  statusLine.textContent =
+    "Loaded clusters.json — " + clusters.length + " row(s).";
+}
+
+async function loadAllInitial() {
+  const [macros, rec, cuis] = await Promise.all([
+    fetchJson(URLS.avg_macros),
+    fetchJson(URLS.recipes),
+    fetchJson(URLS.cuisines),
+  ]);
+  avgMacros = macros;
+  allRecipes = rec;
+  cuisines = cuis;
+  updateBarChart();
+  renderHeatmap();
+  updatePieChart();
+  populateDietFilter();
+  currentPage = 1;
+  renderRecipesAndScatter();
+  statusLine.textContent =
+    "Ready — " +
+    allRecipes.length +
+    " recipes, " +
+    avgMacros.length +
+    " macro rows, " +
+    cuisines.length +
+    " cuisines.";
+}
+
+function wireEvents() {
+  dietFilter.addEventListener("change", function () {
+    currentPage = 1;
+    renderRecipesAndScatter();
+  });
+  searchInput.addEventListener("input", function () {
+    currentPage = 1;
+    renderRecipesAndScatter();
+  });
+  prevBtn.addEventListener("click", function () {
+    currentPage -= 1;
+    renderRecipesAndScatter();
+  });
+  nextBtn.addEventListener("click", function () {
+    currentPage += 1;
+    renderRecipesAndScatter();
+  });
+
+  document.getElementById("btnNutrition").addEventListener("click", function () {
+    loadNutrition().catch(function (e) {
+      console.error(e);
+      statusLine.textContent = "Failed to load avg_macros.json";
+    });
+  });
+  document.getElementById("btnRecipes").addEventListener("click", function () {
+    loadRecipesData().catch(function (e) {
+      console.error(e);
+      statusLine.textContent = "Failed to load recipes.json";
+    });
+  });
+  document.getElementById("btnClusters").addEventListener("click", function () {
+    loadClustersData().catch(function (e) {
+      console.error(e);
+      statusLine.textContent = "Failed to load clusters.json";
+    });
+  });
+
+  document.getElementById("btnCleanup").addEventListener("click", function () {
+    window.alert("Demo: connect this to your cloud cleanup workflow.");
+  });
+
+  logoutBtn.addEventListener("click", function () {
+    localStorage.removeItem(STORAGE_KEY);
+    window.location.href = "login.html";
+  });
+}
+
+function init() {
+  const user = requireAuth();
+  if (!user) return;
+
+  welcomeMsg.textContent = "Welcome, " + (user.name || "User");
+  oauthStatus.textContent =
+    "Signed in with " + (user.provider || "OAuth") + " (2FA verified).";
+
+  wireEvents();
+
+  loadAllInitial().catch(function (err) {
+    console.error(err);
+    statusLine.textContent =
+      "Could not load JSON. Use a local server from project root (e.g. python -m http.server) and open /frontend/index.html";
+  });
+}
+
+init();
