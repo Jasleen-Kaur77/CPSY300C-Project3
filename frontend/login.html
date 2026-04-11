@@ -11,19 +11,21 @@
 <body class="auth-body">
   <div class="auth-container">
     <div class="auth-card">
-      <h1>Diet Dashboard Login</h1>
+      <p class="auth-kicker">Secure Access</p>
+      <h1 class="auth-heading">Diet Dashboard Login</h1>
+      <p class="auth-subtitle">Sign in to view nutritional insights, recipe search, and protected dashboard data.</p>
 
-      <input type="email" id="email" placeholder="Email" />
-      <input type="password" id="password" placeholder="Password" />
+      <input type="email" id="email" placeholder="Email" class="auth-field" />
+      <input type="password" id="password" placeholder="Password" class="auth-field" />
 
       <div class="auth-buttons">
-        <button id="registerBtn">Register</button>
-        <button id="loginBtn">Login</button>
+        <button id="registerBtn" class="auth-btn auth-btn-secondary">Register</button>
+        <button id="loginBtn" class="auth-btn auth-btn-primary">Login</button>
       </div>
 
-      <hr />
+      <div class="auth-divider"><span>or</span></div>
 
-      <button id="googleBtn">Sign in with Google</button>
+      <button id="googleBtn" class="auth-btn auth-btn-google">Sign in with Google</button>
 
       <p id="authMessage"></p>
     </div>
