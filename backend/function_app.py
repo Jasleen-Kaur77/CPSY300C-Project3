@@ -17,9 +17,7 @@ def _get_storage_connection() -> str:
 def _get_container_name() -> str:
     return os.environ.get("BLOB_CONTAINER_NAME", "datasets")
 
-# =========================
-# 🔹 BLOB TRIGGER
-# =========================
+# BLOB TRIGGER
 @app.blob_trigger(
     arg_name="myblob",
     path="datasets/All_Diets.csv",
@@ -34,9 +32,7 @@ def blob_trigger_function(myblob: func.InputStream):
     process_csv(temp_path)
 
 
-# =========================
-# 🔹 GET NUTRITION
-# =========================
+# GET NUTRITION
 @app.route(route="get_nutrition", methods=["GET"])
 def get_nutrition(req: func.HttpRequest) -> func.HttpResponse:
     try:
@@ -62,9 +58,7 @@ def get_nutrition(req: func.HttpRequest) -> func.HttpResponse:
         return func.HttpResponse(str(e), status_code=500)
 
 
-# =========================
-# 🔹 GET RECIPES
-# =========================
+#  GET RECIPES
 @app.route(route="get_recipes", methods=["GET"])
 def get_recipes(req: func.HttpRequest) -> func.HttpResponse:
     try:
@@ -90,9 +84,7 @@ def get_recipes(req: func.HttpRequest) -> func.HttpResponse:
         return func.HttpResponse(str(e), status_code=500)
 
 
-# =========================
-# 🔹 GET CLUSTERS
-# =========================
+# GET CLUSTERS
 @app.route(route="get_clusters", methods=["GET"])
 def get_clusters(req: func.HttpRequest) -> func.HttpResponse:
     try:
