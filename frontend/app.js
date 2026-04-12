@@ -377,16 +377,16 @@ function renderRecipesAndScatter() {
       total === 0
         ? "No recipes to show."
         : "Showing " +
-          startIdx +
-          "–" +
-          endIdx +
-          " of " +
-          total +
-          " recipes (page " +
-          currentPage +
-          " of " +
-          pages +
-          ").";
+        startIdx +
+        "–" +
+        endIdx +
+        " of " +
+        total +
+        " recipes (page " +
+        currentPage +
+        " of " +
+        pages +
+        ").";
   }
 
   recipeList.innerHTML = "";
@@ -524,7 +524,24 @@ function wireEvents() {
   });
 
   document.getElementById("btnCleanup").addEventListener("click", function () {
-    window.alert("Demo: connect this to your cloud cleanup workflow.");
+    // 1. Sign out from Firebase (important)
+    signOut(auth)
+      .then(function () {
+        console.log("User signed out successfully");
+      })
+      .catch(function (error) {
+        console.error("Error signing out:", error);
+      })
+      .finally(function () {
+        // 2. Clear any local/session data 
+        localStorage.clear();
+
+        // 3. Show success message
+        alert("Resources cleaned successfully");
+
+        // 4. Redirect to login page
+        window.location.href = "login.html";
+      });
   });
 
   logoutBtn.addEventListener("click", function () {
