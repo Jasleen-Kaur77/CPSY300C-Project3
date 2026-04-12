@@ -524,23 +524,26 @@ function wireEvents() {
   });
 
   document.getElementById("btnCleanup").addEventListener("click", function () {
-    // 1. Sign out from Firebase (important)
+    // 1. Sign out from Firebase
     signOut(auth)
       .then(function () {
         console.log("User signed out successfully");
-      })
-      .catch(function (error) {
-        console.error("Error signing out:", error);
-      })
-      .finally(function () {
-        // 2. Clear any local/session data 
-        localStorage.clear();
+
+        // 2. Clear ONLY app-related data (not everything)
+        localStorage.removeItem("user"); // if you store user manually
+        sessionStorage.clear();
 
         // 3. Show success message
         alert("Resources cleaned successfully");
 
         // 4. Redirect to login page
         window.location.href = "login.html";
+      })
+      .catch(function (error) {
+        console.error("Error signing out:", error);
+
+        // Show error message ONLY if logout fails
+        alert("Error during cleanup. Please try again.");
       });
   });
 
