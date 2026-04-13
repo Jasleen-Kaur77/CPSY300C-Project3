@@ -28,6 +28,7 @@ const URLS = {
 };
 
 const PAGE_SIZE = 10;
+const MAX_VISIBLE_PAGE_BUTTONS = 7;
 
 let chartBar = null;
 let chartScatter = null;
@@ -348,17 +349,57 @@ function populateDietFilter() {
 
 function renderPageButtons(pages) {
   pageNumbers.innerHTML = "";
-  for (let p = 1; p <= pages; p++) {
+
+  function appendPageButton(page) {
     const b = document.createElement("button");
     b.type = "button";
-    b.className = "page-num" + (p === currentPage ? " is-active" : "");
-    b.textContent = String(p);
+    b.className = "page-num" + (page === currentPage ? " is-active" : "");
+    b.textContent = String(page);
     b.addEventListener("click", function () {
-      currentPage = p;
+      currentPage = page;
       renderRecipesAndScatter();
     });
     pageNumbers.appendChild(b);
   }
+
+  function appendEllipsis() {
+    const span = document.createElement("span");
+    span.className = "page-ellipsis";
+    span.textContent = "...";
+    pageNumbers.appendChild(span);
+  }
+
+  if (pages <= MAX_VISIBLE_PAGE_BUTTONS) {
+    for (let p = 1; p <= pages; p++) {
+      appendPageButton(p);
+    }
+    return;
+  }
+
+  const innerSlots = MAX_VISIBLE_PAGE_BUTTONS - 2;
+  let start = Math.max(2, currentPage - Math.floor(innerSlots / 2));
+  let end = start + innerSlots - 1;
+
+  if (end >= pages) {
+    end = pages - 1;
+    start = end - innerSlots + 1;
+  }
+
+  appendPageButton(1);
+
+  if (start > 2) {
+    appendEllipsis();
+  }
+
+  for (let p = start; p <= end; p++) {
+    appendPageButton(p);
+  }
+
+  if (end < pages - 1) {
+    appendEllipsis();
+  }
+
+  appendPageButton(pages);
 }
 
 function renderRecipesAndScatter() {
@@ -430,35 +471,6 @@ function renderRecipesAndScatter() {
   updateScatterChart(slice);
 }
 
-async function loadNutrition() {
-  avgMacros = await fetchJson(URLS.avg_macros);
-  updateBarChart();
-  renderHeatmap();
-  statusLine.textContent =
-    "Loaded avg_macros.json — " + avgMacros.length + " diet row(s).";
-}
-
-async function loadRecipesData() {
-  allRecipes = await fetchJson(URLS.recipes);
-  if (!Array.isArray(allRecipes)) throw new Error("recipes must be array");
-  populateDietFilter();
-  currentPage = 1;
-  renderRecipesAndScatter();
-  statusLine.textContent = "Loaded recipes.json — " + allRecipes.length + " recipe(s).";
-}
-
-async function loadCuisinesData() {
-  cuisines = await fetchJson(URLS.clusters);
-  updatePieChart();
-}
-
-async function loadClustersData() {
-  clusters = await fetchJson(URLS.clusters);
-  renderClustersPanel();
-  statusLine.textContent =
-    "Loaded clusters.json — " + clusters.length + " row(s).";
-}
-
 async function loadAllInitial() {
   const [macros, rec, clusterRows] = await Promise.all([
     fetchJson(URLS.avg_macros),
@@ -502,25 +514,6 @@ function wireEvents() {
   nextBtn.addEventListener("click", function () {
     currentPage += 1;
     renderRecipesAndScatter();
-  });
-
-  document.getElementById("btnNutrition").addEventListener("click", function () {
-    loadNutrition().catch(function (e) {
-      console.error(e);
-      statusLine.textContent = "Failed to load nutrition data";
-    });
-  });
-  document.getElementById("btnRecipes").addEventListener("click", function () {
-    loadRecipesData().catch(function (e) {
-      console.error(e);
-      statusLine.textContent = "Failed to load recipes data";
-    });
-  });
-  document.getElementById("btnClusters").addEventListener("click", function () {
-    loadClustersData().catch(function (e) {
-      console.error(e);
-      statusLine.textContent = "Failed to load cluster data";
-    });
   });
 
   document.getElementById("btnCleanup").addEventListener("click", function () {

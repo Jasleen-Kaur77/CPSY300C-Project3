@@ -414,6 +414,17 @@ body {
   color: #fff;
 }
 
+.page-ellipsis {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  height: 36px;
+  color: #64748b;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
 /* —— Footer —— */
 .site-footer {
   background: #2563eb;
